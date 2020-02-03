@@ -6,7 +6,6 @@
 # GNU Radio version: 3.7.13.5
 ##################################################
 
-from distutils.version import StrictVersion
 
 if __name__ == '__main__':
     import ctypes
@@ -18,173 +17,245 @@ if __name__ == '__main__':
         except:
             print "Warning: failed to XInitThreads()"
 
-from PyQt5 import Qt
-from PyQt5 import Qt, QtCore
+from gnuradio import analog
+from gnuradio import audio
+from gnuradio import blocks
 from gnuradio import eng_notation
+from gnuradio import filter
 from gnuradio import gr
-from gnuradio import qtgui
+from gnuradio import wxgui
 from gnuradio.eng_option import eng_option
+from gnuradio.fft import window
 from gnuradio.filter import firdes
-from gnuradio.qtgui import Range, RangeWidget
+from gnuradio.wxgui import fftsink2
+from gnuradio.wxgui import forms
+from grc_gnuradio import wxgui as grc_wxgui
 from optparse import OptionParser
 import osmosdr
-import sip
-import sys
 import time
-from gnuradio import qtgui
+import wx
 
 
-class top_block(gr.top_block, Qt.QWidget):
+class top_block(grc_wxgui.top_block_gui):
 
     def __init__(self):
-        gr.top_block.__init__(self, "Top Block")
-        Qt.QWidget.__init__(self)
-        self.setWindowTitle("Top Block")
-        qtgui.util.check_set_qss()
-        try:
-            self.setWindowIcon(Qt.QIcon.fromTheme('gnuradio-grc'))
-        except:
-            pass
-        self.top_scroll_layout = Qt.QVBoxLayout()
-        self.setLayout(self.top_scroll_layout)
-        self.top_scroll = Qt.QScrollArea()
-        self.top_scroll.setFrameStyle(Qt.QFrame.NoFrame)
-        self.top_scroll_layout.addWidget(self.top_scroll)
-        self.top_scroll.setWidgetResizable(True)
-        self.top_widget = Qt.QWidget()
-        self.top_scroll.setWidget(self.top_widget)
-        self.top_layout = Qt.QVBoxLayout(self.top_widget)
-        self.top_grid_layout = Qt.QGridLayout()
-        self.top_layout.addLayout(self.top_grid_layout)
-
-        self.settings = Qt.QSettings("GNU Radio", "top_block")
-        self.restoreGeometry(self.settings.value("geometry", type=QtCore.QByteArray))
-
+        grc_wxgui.top_block_gui.__init__(self, title="Top Block")
+        _icon_path = "/usr/share/icons/hicolor/32x32/apps/gnuradio-grc.png"
+        self.SetIcon(wx.Icon(_icon_path, wx.BITMAP_TYPE_ANY))
 
         ##################################################
         # Variables
         ##################################################
         self.samp_rate = samp_rate = 10e6
         self.rf_gain = rf_gain = 0
-        self.center_freq = center_freq = 88e6
+        self.channel_width = channel_width = 200e3
+        self.channel_freq = channel_freq = 96.5e6
+        self.center_freq = center_freq = 97.9e6
 
         ##################################################
         # Blocks
         ##################################################
-        self._samp_rate_range = Range(1e6, 20e6, 1e6, 10e6, 200)
-        self._samp_rate_win = RangeWidget(self._samp_rate_range, self.set_samp_rate, 'Sample Rate', "slider", float)
-        self.top_grid_layout.addWidget(self._samp_rate_win)
-        self._rf_gain_range = Range(0, 20, 1, 0, 200)
-        self._rf_gain_win = RangeWidget(self._rf_gain_range, self.set_rf_gain, 'RF Gain', "counter_slider", float)
-        self.top_grid_layout.addWidget(self._rf_gain_win)
-        self._center_freq_range = Range(88e6, 108e6, 0.1e6, 88e6, 200)
-        self._center_freq_win = RangeWidget(self._center_freq_range, self.set_center_freq, 'Center Frequency', "counter_slider", float)
-        self.top_grid_layout.addWidget(self._center_freq_win)
-        self.qtgui_freq_sink_x_0 = qtgui.freq_sink_c(
-        	1024, #size
-        	firdes.WIN_BLACKMAN_hARRIS, #wintype
-        	center_freq, #fc
-        	samp_rate, #bw
-        	"", #name
-        	1 #number of inputs
+        _samp_rate_sizer = wx.BoxSizer(wx.VERTICAL)
+        self._samp_rate_text_box = forms.text_box(
+        	parent=self.GetWin(),
+        	sizer=_samp_rate_sizer,
+        	value=self.samp_rate,
+        	callback=self.set_samp_rate,
+        	label='Sample Rate',
+        	converter=forms.float_converter(),
+        	proportion=0,
         )
-        self.qtgui_freq_sink_x_0.set_update_time(0.10)
-        self.qtgui_freq_sink_x_0.set_y_axis(-140, 10)
-        self.qtgui_freq_sink_x_0.set_y_label('Relative Gain', 'dB')
-        self.qtgui_freq_sink_x_0.set_trigger_mode(qtgui.TRIG_MODE_FREE, 0.0, 0, "")
-        self.qtgui_freq_sink_x_0.enable_autoscale(True)
-        self.qtgui_freq_sink_x_0.enable_grid(True)
-        self.qtgui_freq_sink_x_0.set_fft_average(0.1)
-        self.qtgui_freq_sink_x_0.enable_axis_labels(True)
-        self.qtgui_freq_sink_x_0.enable_control_panel(False)
-
-        if not True:
-          self.qtgui_freq_sink_x_0.disable_legend()
-
-        if "complex" == "float" or "complex" == "msg_float":
-          self.qtgui_freq_sink_x_0.set_plot_pos_half(not True)
-
-        labels = ['', '', '', '', '',
-                  '', '', '', '', '']
-        widths = [1, 1, 1, 1, 1,
-                  1, 1, 1, 1, 1]
-        colors = ["blue", "red", "green", "black", "cyan",
-                  "magenta", "yellow", "dark red", "dark green", "dark blue"]
-        alphas = [1.0, 1.0, 1.0, 1.0, 1.0,
-                  1.0, 1.0, 1.0, 1.0, 1.0]
-        for i in xrange(1):
-            if len(labels[i]) == 0:
-                self.qtgui_freq_sink_x_0.set_line_label(i, "Data {0}".format(i))
-            else:
-                self.qtgui_freq_sink_x_0.set_line_label(i, labels[i])
-            self.qtgui_freq_sink_x_0.set_line_width(i, widths[i])
-            self.qtgui_freq_sink_x_0.set_line_color(i, colors[i])
-            self.qtgui_freq_sink_x_0.set_line_alpha(i, alphas[i])
-
-        self._qtgui_freq_sink_x_0_win = sip.wrapinstance(self.qtgui_freq_sink_x_0.pyqwidget(), Qt.QWidget)
-        self.top_grid_layout.addWidget(self._qtgui_freq_sink_x_0_win)
+        self._samp_rate_slider = forms.slider(
+        	parent=self.GetWin(),
+        	sizer=_samp_rate_sizer,
+        	value=self.samp_rate,
+        	callback=self.set_samp_rate,
+        	minimum=1e6,
+        	maximum=20e6,
+        	num_steps=100,
+        	style=wx.SL_HORIZONTAL,
+        	cast=float,
+        	proportion=1,
+        )
+        self.Add(_samp_rate_sizer)
+        _rf_gain_sizer = wx.BoxSizer(wx.VERTICAL)
+        self._rf_gain_text_box = forms.text_box(
+        	parent=self.GetWin(),
+        	sizer=_rf_gain_sizer,
+        	value=self.rf_gain,
+        	callback=self.set_rf_gain,
+        	label='RF Gain',
+        	converter=forms.float_converter(),
+        	proportion=0,
+        )
+        self._rf_gain_slider = forms.slider(
+        	parent=self.GetWin(),
+        	sizer=_rf_gain_sizer,
+        	value=self.rf_gain,
+        	callback=self.set_rf_gain,
+        	minimum=0,
+        	maximum=20,
+        	num_steps=20,
+        	style=wx.SL_HORIZONTAL,
+        	cast=float,
+        	proportion=1,
+        )
+        self.Add(_rf_gain_sizer)
+        _channel_freq_sizer = wx.BoxSizer(wx.VERTICAL)
+        self._channel_freq_text_box = forms.text_box(
+        	parent=self.GetWin(),
+        	sizer=_channel_freq_sizer,
+        	value=self.channel_freq,
+        	callback=self.set_channel_freq,
+        	label='Channel Frequency',
+        	converter=forms.float_converter(),
+        	proportion=0,
+        )
+        self._channel_freq_slider = forms.slider(
+        	parent=self.GetWin(),
+        	sizer=_channel_freq_sizer,
+        	value=self.channel_freq,
+        	callback=self.set_channel_freq,
+        	minimum=88e6,
+        	maximum=108e6,
+        	num_steps=200,
+        	style=wx.SL_HORIZONTAL,
+        	cast=float,
+        	proportion=1,
+        )
+        self.Add(_channel_freq_sizer)
+        self.wxgui_fftsink2_0_0 = fftsink2.fft_sink_c(
+        	self.GetWin(),
+        	baseband_freq=channel_freq,
+        	y_per_div=10,
+        	y_divs=10,
+        	ref_level=0,
+        	ref_scale=2.0,
+        	sample_rate=samp_rate,
+        	fft_size=1024,
+        	fft_rate=15,
+        	average=True,
+        	avg_alpha=None,
+        	title='FFT Plot DownShift',
+        	peak_hold=False,
+        	win=window.blackmanharris,
+        )
+        self.Add(self.wxgui_fftsink2_0_0.win)
+        self.wxgui_fftsink2_0 = fftsink2.fft_sink_c(
+        	self.GetWin(),
+        	baseband_freq=center_freq,
+        	y_per_div=10,
+        	y_divs=10,
+        	ref_level=0,
+        	ref_scale=2.0,
+        	sample_rate=samp_rate,
+        	fft_size=1024,
+        	fft_rate=15,
+        	average=True,
+        	avg_alpha=None,
+        	title='FFT Plot',
+        	peak_hold=False,
+        	win=window.blackmanharris,
+        )
+        self.Add(self.wxgui_fftsink2_0.win)
+        self.rational_resampler_xxx_0 = filter.rational_resampler_ccc(
+                interpolation=12,
+                decimation=5,
+                taps=None,
+                fractional_bw=None,
+        )
         self.osmosdr_source_0 = osmosdr.source( args="numchan=" + str(1) + " " + '' )
+        self.osmosdr_source_0.set_clock_source('mimo', 0)
         self.osmosdr_source_0.set_sample_rate(samp_rate)
         self.osmosdr_source_0.set_center_freq(97.9e6, 0)
         self.osmosdr_source_0.set_freq_corr(0, 0)
         self.osmosdr_source_0.set_dc_offset_mode(0, 0)
-        self.osmosdr_source_0.set_iq_balance_mode(2, 0)
-        self.osmosdr_source_0.set_gain_mode(True, 0)
+        self.osmosdr_source_0.set_iq_balance_mode(0, 0)
+        self.osmosdr_source_0.set_gain_mode(False, 0)
         self.osmosdr_source_0.set_gain(rf_gain, 0)
         self.osmosdr_source_0.set_if_gain(20, 0)
         self.osmosdr_source_0.set_bb_gain(20, 0)
         self.osmosdr_source_0.set_antenna('', 0)
         self.osmosdr_source_0.set_bandwidth(0, 0)
 
+        self.low_pass_filter_0 = filter.fir_filter_ccf(int(samp_rate/channel_width), firdes.low_pass(
+        	1, samp_rate, 75e3, 25e3, firdes.WIN_HAMMING, 6.76))
+        self.blocks_multiply_xx_0 = blocks.multiply_vcc(1)
+        self.blocks_multiply_const_vxx_0 = blocks.multiply_const_vff((1, ))
+        self.audio_sink_0 = audio.sink(48000, 'plughw:0,0', True)
+        self.analog_wfm_rcv_0 = analog.wfm_rcv(
+        	quad_rate=480e3,
+        	audio_decimation=10,
+        )
+        self.analog_sig_source_x_0 = analog.sig_source_c(samp_rate, analog.GR_COS_WAVE, center_freq - channel_freq, 1, 0)
 
 
 
         ##################################################
         # Connections
         ##################################################
-        self.connect((self.osmosdr_source_0, 0), (self.qtgui_freq_sink_x_0, 0))
-
-    def closeEvent(self, event):
-        self.settings = Qt.QSettings("GNU Radio", "top_block")
-        self.settings.setValue("geometry", self.saveGeometry())
-        event.accept()
+        self.connect((self.analog_sig_source_x_0, 0), (self.blocks_multiply_xx_0, 1))
+        self.connect((self.analog_wfm_rcv_0, 0), (self.blocks_multiply_const_vxx_0, 0))
+        self.connect((self.blocks_multiply_const_vxx_0, 0), (self.audio_sink_0, 0))
+        self.connect((self.blocks_multiply_xx_0, 0), (self.low_pass_filter_0, 0))
+        self.connect((self.blocks_multiply_xx_0, 0), (self.wxgui_fftsink2_0_0, 0))
+        self.connect((self.low_pass_filter_0, 0), (self.rational_resampler_xxx_0, 0))
+        self.connect((self.osmosdr_source_0, 0), (self.blocks_multiply_xx_0, 0))
+        self.connect((self.osmosdr_source_0, 0), (self.wxgui_fftsink2_0, 0))
+        self.connect((self.rational_resampler_xxx_0, 0), (self.analog_wfm_rcv_0, 0))
 
     def get_samp_rate(self):
         return self.samp_rate
 
     def set_samp_rate(self, samp_rate):
         self.samp_rate = samp_rate
-        self.qtgui_freq_sink_x_0.set_frequency_range(self.center_freq, self.samp_rate)
+        self._samp_rate_slider.set_value(self.samp_rate)
+        self._samp_rate_text_box.set_value(self.samp_rate)
+        self.wxgui_fftsink2_0_0.set_sample_rate(self.samp_rate)
+        self.wxgui_fftsink2_0.set_sample_rate(self.samp_rate)
         self.osmosdr_source_0.set_sample_rate(self.samp_rate)
+        self.low_pass_filter_0.set_taps(firdes.low_pass(1, self.samp_rate, 75e3, 25e3, firdes.WIN_HAMMING, 6.76))
+        self.analog_sig_source_x_0.set_sampling_freq(self.samp_rate)
 
     def get_rf_gain(self):
         return self.rf_gain
 
     def set_rf_gain(self, rf_gain):
         self.rf_gain = rf_gain
+        self._rf_gain_slider.set_value(self.rf_gain)
+        self._rf_gain_text_box.set_value(self.rf_gain)
         self.osmosdr_source_0.set_gain(self.rf_gain, 0)
+
+    def get_channel_width(self):
+        return self.channel_width
+
+    def set_channel_width(self, channel_width):
+        self.channel_width = channel_width
+
+    def get_channel_freq(self):
+        return self.channel_freq
+
+    def set_channel_freq(self, channel_freq):
+        self.channel_freq = channel_freq
+        self._channel_freq_slider.set_value(self.channel_freq)
+        self._channel_freq_text_box.set_value(self.channel_freq)
+        self.wxgui_fftsink2_0_0.set_baseband_freq(self.channel_freq)
+        self.analog_sig_source_x_0.set_frequency(self.center_freq - self.channel_freq)
 
     def get_center_freq(self):
         return self.center_freq
 
     def set_center_freq(self, center_freq):
         self.center_freq = center_freq
-        self.qtgui_freq_sink_x_0.set_frequency_range(self.center_freq, self.samp_rate)
+        self.wxgui_fftsink2_0.set_baseband_freq(self.center_freq)
+        self.analog_sig_source_x_0.set_frequency(self.center_freq - self.channel_freq)
 
 
 def main(top_block_cls=top_block, options=None):
 
-    qapp = Qt.QApplication(sys.argv)
-
     tb = top_block_cls()
-    tb.start()
-    tb.show()
-
-    def quitting():
-        tb.stop()
-        tb.wait()
-    qapp.aboutToQuit.connect(quitting)
-    qapp.exec_()
+    tb.Start(True)
+    tb.Wait()
 
 
 if __name__ == '__main__':
